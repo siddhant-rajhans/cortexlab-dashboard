@@ -79,13 +79,114 @@ ALIGNMENT_METHODS = {"RSA": rsa_score, "CKA": cka_score, "Procrustes": procruste
 
 
 def permutation_test(model_feat, brain_pred, method_fn, n_perm=500, seed=42):
+    """Returns (observed_score, p_value, null_distribution)."""
     rng = np.random.default_rng(seed)
     observed = method_fn(model_feat, brain_pred)
-    count = sum(
-        1 for _ in range(n_perm)
-        if method_fn(model_feat[rng.permutation(len(model_feat))], brain_pred) >= observed
-    )
-    return observed, (count + 1) / (n_perm + 1)
+    null_dist = []
+    for _ in range(n_perm):
+        perm_score = method_fn(model_feat[rng.permutation(len(model_feat))], brain_pred)
+        null_dist.append(perm_score)
+    null_dist = np.array(null_dist)
+    count = np.sum(null_dist >= observed)
+    p_value = (count + 1) / (n_perm + 1)
+    return observed, p_value, null_dist
+
+
+def bootstrap_ci(model_feat, brain_pred, method_fn, n_boot=500, confidence=0.95, seed=42):
+    """Returns (point_estimate, ci_lower, ci_upper)."""
+    rng = np.random.default_rng(seed)
+    n = model_feat.shape[0]
+    point = method_fn(model_feat, brain_pred)
+    scores = []
+    for _ in range(n_boot):
+        idx = rng.choice(n, size=n, replace=True)
+        scores.append(method_fn(model_feat[idx], brain_pred[idx]))
+    scores = np.array(scores)
+    alpha = 1 - confidence
+    return point, float(np.percentile(scores, 100 * alpha / 2)), float(np.percentile(scores, 100 * (1 - alpha / 2)))
+
+
+def fdr_correction(p_values, alpha=0.05):
+    """Benjamini-Hochberg FDR correction. Returns corrected p-values and significance mask."""
+    p = np.array(p_values)
+    n = len(p)
+    sorted_idx = np.argsort(p)
+    sorted_p = p[sorted_idx]
+    corrected = np.empty(n)
+    corrected[sorted_idx[-1]] = sorted_p[-1]
+    for i in range(n - 2, -1, -1):
+        corrected[sorted_idx[i]] = min(corrected[sorted_idx[i + 1]], sorted_p[i] * n / (i + 1))
+    return corrected, corrected < alpha
+
+
+def noise_ceiling(brain_pred, method_fn, n_splits=20, seed=42):
+    """Estimate noise ceiling via split-half reliability."""
+    rng = np.random.default_rng(seed)
+    n = brain_pred.shape[0]
+    scores = []
+    for _ in range(n_splits):
+        idx = rng.permutation(n)
+        half = n // 2
+        s = method_fn(brain_pred[idx[:half]], brain_pred[idx[half:half * 2]])
+        scores.append(s)
+    return float(np.mean(scores)), float(np.std(scores))
+
+
+def partial_correlation(predictions, roi_indices):
+    """Compute partial correlation matrix (correlation controlling for mean signal)."""
+    names = list(roi_indices.keys())
+    n = len(names)
+    T = predictions.shape[0]
+    timecourses = np.zeros((n, T))
+    for i, name in enumerate(names):
+        verts = roi_indices[name]
+        valid = verts[verts < predictions.shape[1]]
+        if len(valid) > 0:
+            timecourses[i] = predictions[:, valid].mean(axis=1)
+
+    # Partial correlation via precision matrix
+    cov = np.cov(timecourses)
+    try:
+        prec = np.linalg.inv(cov + 1e-6 * np.eye(n))
+        d = np.sqrt(np.diag(prec))
+        d[d == 0] = 1
+        partial = -prec / np.outer(d, d)
+        np.fill_diagonal(partial, 1.0)
+    except np.linalg.LinAlgError:
+        partial = np.eye(n)
+    return np.nan_to_num(partial, nan=0.0), names
+
+
+def betweenness_centrality(corr_matrix, roi_names, threshold=0.3):
+    """Compute betweenness centrality from thresholded connectivity."""
+    import networkx as nx
+    n = corr_matrix.shape[0]
+    G = nx.Graph()
+    for i, name in enumerate(roi_names):
+        G.add_node(name)
+    for i in range(n):
+        for j in range(i + 1, n):
+            if abs(corr_matrix[i, j]) > threshold:
+                G.add_edge(roi_names[i], roi_names[j], weight=abs(corr_matrix[i, j]))
+    bc = nx.betweenness_centrality(G)
+    return {name: bc.get(name, 0.0) for name in roi_names}
+
+
+def modularity_score(corr_matrix, labels):
+    """Compute Newman's modularity Q for a given partition."""
+    n = corr_matrix.shape[0]
+    adj = np.abs(corr_matrix).copy()
+    np.fill_diagonal(adj, 0)
+    m = adj.sum() / 2
+    if m == 0:
+        return 0.0
+    Q = 0.0
+    k = adj.sum(axis=1)
+    for i in range(n):
+        for j in range(n):
+            if labels[i] == labels[j]:
+                Q += adj[i, j] - k[i] * k[j] / (2 * m)
+    return float(Q / (2 * m))
 
 
 # --- Cognitive Load ---
