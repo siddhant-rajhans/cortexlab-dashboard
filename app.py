@@ -103,6 +103,11 @@ with col2:
     st.page_link("pages/4_Connectivity.py", label="ROI Connectivity", icon="🔗")
     st.caption("Partial correlation, modularity, betweenness centrality, dendrogram, network graph")
 
+st.divider()
+st.subheader("3D Visualization")
+st.page_link("pages/5_Brain_Viewer.py", label="Interactive 3D Brain Viewer", icon="🧠")
+st.caption("Rotatable brain surface with activation overlays, publication-quality multi-view panels, ROI highlighting, and modality-specific patterns")
+
 # --- Analysis Log ---
 show_analysis_log()
 
