@@ -5,6 +5,7 @@ import numpy as np
 import plotly.graph_objects as go
 
 from session import init_session, show_analysis_log, upload_npy_widget
+from theme import inject_theme, section_header
 from brain_mesh import (
     load_fsaverage_mesh,
     load_sulcal_map,
@@ -21,6 +22,7 @@ from utils import ROI_GROUPS, make_roi_indices
 
 st.set_page_config(page_title="3D Brain Viewer", page_icon="🧠", layout="wide")
 init_session()
+inject_theme()
 show_analysis_log()
 
 st.title("🧠 Interactive 3D Brain Viewer")

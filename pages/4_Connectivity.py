@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 
 from session import init_session, log_analysis, get_carried_rois, download_csv_button, show_analysis_log
+from theme import inject_theme, section_header
 from utils import (
     make_roi_indices, compute_connectivity, cluster_rois, graph_metrics,
     partial_correlation, betweenness_centrality, modularity_score,
@@ -16,6 +17,7 @@ from synthetic import generate_realistic_predictions
 
 st.set_page_config(page_title="ROI Connectivity", page_icon="🔗", layout="wide")
 init_session()
+inject_theme()
 show_analysis_log()
 
 st.title("🔗 ROI Connectivity Analysis")

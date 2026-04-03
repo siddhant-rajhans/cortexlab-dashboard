@@ -7,11 +7,13 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from session import init_session, log_analysis, get_carried_rois, download_csv_button, show_analysis_log
+from theme import inject_theme, section_header
 from utils import make_roi_indices, peak_latency, temporal_correlation, decompose_response, ROI_GROUPS, ALL_ROIS
 from synthetic import generate_realistic_predictions, generate_correlated_features
 
 st.set_page_config(page_title="Temporal Dynamics", page_icon="⏱️", layout="wide")
 init_session()
+inject_theme()
 show_analysis_log()
 
 st.title("⏱️ Temporal Dynamics")

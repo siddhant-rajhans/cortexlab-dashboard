@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 
 from session import init_session, log_analysis, carry_rois, download_csv_button, show_analysis_log
+from theme import inject_theme, section_header
 from utils import (
     ALIGNMENT_METHODS, ROI_GROUPS, make_roi_indices,
     permutation_test, bootstrap_ci, fdr_correction, noise_ceiling,
@@ -16,6 +17,7 @@ from synthetic import generate_realistic_predictions, generate_correlated_featur
 
 st.set_page_config(page_title="Brain Alignment", page_icon="🎯", layout="wide")
 init_session()
+inject_theme()
 show_analysis_log()
 
 st.title("🎯 Brain Alignment Benchmark")
