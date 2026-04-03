@@ -97,17 +97,11 @@ with col5:
 
 with col6:
     st.markdown(feature_card(
-        "⚡", "Streaming Inference",
-        "Real-time sliding-window predictions for BCI pipelines. Cross-subject adaptation with minimal calibration data.",
-        "#F59E0B"
+        "🔴", "Live Inference",
+        "Real-time brain prediction from webcam, screen capture, or video. All metrics update live. Works in simulation mode or with full CortexLab + GPU.",
+        "#EF4444"
     ), unsafe_allow_html=True)
-    st.markdown(f"""
-    <a href="https://github.com/siddhant-rajhans/cortexlab" target="_blank" style="
-        display: inline-block; padding: 0.4rem 1rem;
-        color: #F59E0B; font-size: 0.85rem;
-        text-decoration: none;
-    ">View on GitHub &rarr;</a>
-    """, unsafe_allow_html=True)
+    st.page_link("pages/6_Live_Inference.py", label="Open Live Inference")
 
 # --- Data Config (collapsed) ---
 st.markdown("<div style='height: 1rem'></div>", unsafe_allow_html=True)
