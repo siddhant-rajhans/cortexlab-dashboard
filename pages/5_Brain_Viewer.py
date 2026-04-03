@@ -51,11 +51,11 @@ with st.sidebar:
                             format_func=lambda x: {"#0E1117": "Dark", "#000000": "Black", "#1A1A2E": "Navy"}[x])
 
     st.subheader("ROI Highlighting")
-    roi_groups_selected = st.multiselect("Region groups", list(ROI_GROUPS.keys()))
+    roi_groups_selected = st.multiselect("Region groups", list(ROI_GROUPS.keys()), default=["Visual"])
     available_rois = []
     for g in roi_groups_selected:
         available_rois.extend(ROI_GROUPS[g])
-    selected_rois = st.multiselect("Specific ROIs", available_rois, default=available_rois[:5] if available_rois else [])
+    selected_rois = st.multiselect("Specific ROIs", available_rois, default=available_rois[:4] if available_rois else [])
     show_labels = st.checkbox("Show ROI labels", value=True)
 
 # --- Load Mesh ---

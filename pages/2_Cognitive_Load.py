@@ -92,9 +92,16 @@ for dim, color in dim_colors.items():
         ci_hi = np.percentile(boot_arr, 97.5, axis=0)
         t_axis = timeline_df["time"].values
 
+        # Convert hex color to rgba for fill
+        if color.startswith("#"):
+            r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+            fill_color = f"rgba({r},{g},{b},0.15)"
+        else:
+            fill_color = color
+
         fig.add_trace(go.Scatter(x=t_axis, y=ci_hi, mode="lines", line=dict(width=0), showlegend=False))
         fig.add_trace(go.Scatter(x=t_axis, y=ci_lo, mode="lines", line=dict(width=0),
-                                 fill="tonexty", fillcolor=color.replace(")", ",0.15)").replace("rgb", "rgba").replace("#", "rgba(") if color.startswith("#") else color,
+                                 fill="tonexty", fillcolor=fill_color,
                                  showlegend=False))
 
     fig.add_trace(go.Scatter(x=timeline_df["time"], y=y, name=dim, line=dict(color=color, width=2)))
