@@ -4,13 +4,37 @@ import streamlit as st
 from pathlib import Path
 
 
-def inject_theme():
-    """Inject custom CSS and hide default Streamlit chrome."""
-    css_path = Path(__file__).parent / "assets" / "theme.css"
-    if css_path.exists():
-        css = css_path.read_text()
-    else:
-        css = ""
+THEME_MODES = ("black", "white")
+
+
+def get_theme_mode() -> str:
+    """Read the active theme from session state. Defaults to ``"black"``."""
+    mode = st.session_state.get("ui_theme_mode", "black")
+    return mode if mode in THEME_MODES else "black"
+
+
+def set_theme_mode(mode: str) -> None:
+    """Set the active theme. Use ``"black"`` for pure-black background,
+    ``"white"`` for pure-white background. Anything else is normalized."""
+    st.session_state["ui_theme_mode"] = mode if mode in THEME_MODES else "black"
+
+
+def inject_theme(mode: str | None = None):
+    """Inject custom CSS for the chosen theme and hide Streamlit chrome.
+
+    When ``mode`` is ``None`` we read the active mode from session state
+    via :func:`get_theme_mode`. The base ``assets/theme.css`` is always
+    included; theme-specific overrides are appended on top.
+    """
+    if mode is None:
+        mode = get_theme_mode()
+
+    base_css_path = Path(__file__).parent / "assets" / "theme.css"
+    overlay_css_path = Path(__file__).parent / "assets" / f"theme_{mode}.css"
+
+    css = base_css_path.read_text() if base_css_path.exists() else ""
+    if overlay_css_path.exists():
+        css += "\n\n" + overlay_css_path.read_text()
 
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
@@ -74,58 +98,155 @@ def hero_header(title, subtitle="", github_url="https://github.com/siddhant-rajh
 
 
 def glow_card(title, value, subtitle="", color="#06B6D4"):
-    """Render a glowing metric card."""
-    st.markdown(f"""
-    <div style="
-        background: rgba(15, 15, 40, 0.5);
-        backdrop-filter: blur(10px);
-        border: 1px solid {color}33;
-        border-radius: 14px;
-        padding: 1.2rem;
-        text-align: center;
-        box-shadow: 0 0 20px {color}15;
-        transition: all 0.3s ease;
-    ">
-        <div style="color: #94A3B8; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.3rem;">{title}</div>
-        <div style="color: {color}; font-size: 2rem; font-weight: 700; letter-spacing: -0.02em;">{value}</div>
-        <div style="color: #64748B; font-size: 0.75rem; margin-top: 0.2rem;">{subtitle}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    """Render a glowing metric card.
+
+    Layout uses the ``cl-stat-card`` CSS class so background / border /
+    text colors come from theme variables and flip automatically when
+    the user switches between Black and White modes. Only the accent
+    color (the big number) stays per-card.
+    """
+    st.markdown(
+        f"""
+        <div class="cl-stat-card" style="--card-accent: {color};">
+            <div class="cl-stat-label">{title}</div>
+            <div class="cl-stat-value">{value}</div>
+            <div class="cl-stat-sub">{subtitle}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def section_header(title, description=""):
-    """Render a styled section header with optional description."""
-    st.markdown(f"""
-    <div style="margin: 1.5rem 0 0.8rem 0;">
-        <h2 style="
-            color: #F1F5F9;
-            font-size: 1.3rem;
-            font-weight: 600;
-            letter-spacing: -0.02em;
-            margin-bottom: 0.3rem;
-            padding-bottom: 0.4rem;
-            border-bottom: 1px solid rgba(100, 100, 255, 0.15);
-        ">{title}</h2>
-        {"<p style='color: #94A3B8; font-size: 0.85rem; margin-top: 0;'>" + description + "</p>" if description else ""}
-    </div>
-    """, unsafe_allow_html=True)
+    """Render a styled section header with optional description.
+
+    Colors come from theme variables (``--text-primary`` for the title,
+    ``--text-secondary`` for the description, ``--border-glass`` for
+    the underline) so the same markup reads correctly on dark and
+    light backgrounds.
+    """
+    desc_html = (
+        f'<p class="cl-section-desc">{description}</p>' if description else ""
+    )
+    st.markdown(
+        f"""
+        <div class="cl-section">
+            <h2 class="cl-section-title">{title}</h2>
+            {desc_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+_FEATURE_ICONS: dict[str, str] = {
+    # Heroicons-style monochrome strokes; small currentColor SVGs so the
+    # accent color flows from the parent `--card-accent` variable.
+    "target": (
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" '
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<circle cx="12" cy="12" r="9"/>'
+        '<circle cx="12" cy="12" r="5"/>'
+        '<circle cx="12" cy="12" r="1.5" fill="currentColor"/>'
+        '</svg>'
+    ),
+    "bars": (
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" '
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M5 21V11"/><path d="M12 21V4"/><path d="M19 21V14"/>'
+        '<path d="M3 21h18"/></svg>'
+    ),
+    "clock": (
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" '
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2.5"/></svg>'
+    ),
+    "graph": (
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" '
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<circle cx="6" cy="7" r="2.2"/><circle cx="18" cy="7" r="2.2"/>'
+        '<circle cx="6" cy="17" r="2.2"/><circle cx="18" cy="17" r="2.2"/>'
+        '<circle cx="12" cy="12" r="2.4"/>'
+        '<path d="M8 7h2.5M13.5 7H16M8 17h2.5M13.5 17H16M6 9.2v5.6M18 9.2v5.6"/></svg>'
+    ),
+    "brain": (
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" '
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M9 5a3 3 0 0 0-3 3v0a2.5 2.5 0 0 0-2 4 2.5 2.5 0 0 0 1 4.5A3 3 0 0 0 9 19V5z"/>'
+        '<path d="M15 5a3 3 0 0 1 3 3v0a2.5 2.5 0 0 1 2 4 2.5 2.5 0 0 1-1 4.5A3 3 0 0 1 15 19V5z"/>'
+        '<path d="M12 5v14"/></svg>'
+    ),
+    "broadcast": (
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" '
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<circle cx="12" cy="12" r="2.5" fill="currentColor"/>'
+        '<path d="M8.5 8.5a5 5 0 0 0 0 7"/><path d="M15.5 15.5a5 5 0 0 0 0-7"/>'
+        '<path d="M5.5 5.5a9 9 0 0 0 0 13"/><path d="M18.5 18.5a9 9 0 0 0 0-13"/></svg>'
+    ),
+    "arrow": (
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>'
+    ),
+}
+
+
+def feature_icon(name: str) -> str:
+    """Return inline SVG markup for a named card icon. Unknown names
+    fall back to a hollow circle so layout still works."""
+    return _FEATURE_ICONS.get(
+        name,
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>',
+    )
 
 
 def feature_card(icon, title, description, color="#7C3AED"):
-    """Render a feature card for the home page."""
+    """Render a feature card for the home page (no inline CTA).
+
+    Kept for backwards compatibility. New callers should prefer
+    :func:`feature_card_link` which produces a uniform-height card
+    with a built-in "Open ..." link, so a row of cards lines up.
+
+    ``icon`` may be either a name registered in ``_FEATURE_ICONS``
+    (e.g. ``"target"``) or raw SVG / HTML markup.
+    """
+    icon_html = _FEATURE_ICONS.get(icon, icon)
     return f"""
-    <div style="
-        background: rgba(15, 15, 40, 0.4);
-        backdrop-filter: blur(8px);
-        border: 1px solid {color}25;
-        border-radius: 14px;
-        padding: 1.3rem;
-        height: 100%;
-        transition: all 0.3s ease;
-        cursor: pointer;
-    ">
-        <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">{icon}</div>
-        <div style="color: {color}; font-size: 1rem; font-weight: 600; margin-bottom: 0.4rem;">{title}</div>
-        <div style="color: #94A3B8; font-size: 0.8rem; line-height: 1.5;">{description}</div>
-    </div>
+    <span class="cl-feature-card" style="--card-accent: {color};">
+        <span class="cl-feature-icon">{icon_html}</span>
+        <span class="cl-feature-title">{title}</span>
+        <span class="cl-feature-desc">{description}</span>
+    </span>
+    """
+
+
+def feature_card_link(icon, title, description, href: str, color="#7C3AED"):
+    """Render a feature card as a single clickable anchor element.
+
+    Inner blocks are rendered as ``<span>`` elements with
+    ``display: block`` in CSS — anchors only allow phrasing-content
+    children in HTML5, and Streamlit's HTML sanitizer hoists ``<div>``
+    children out of ``<a>``, splitting the card visually. Spans are
+    safe.
+
+    ``icon`` may be either a name registered in ``_FEATURE_ICONS``
+    (``"target"``, ``"bars"``, ``"clock"``, ``"graph"``, ``"brain"``,
+    ``"broadcast"``) or raw SVG markup.
+    ``href`` is the multipage URL Streamlit exposes (e.g.
+    ``./Brain_Alignment``).
+    """
+    icon_html = _FEATURE_ICONS.get(icon, icon)
+    arrow = _FEATURE_ICONS["arrow"]
+    return f"""
+    <a class="cl-feature-card cl-feature-link" href="{href}"
+       style="--card-accent: {color};" target="_self">
+        <span class="cl-feature-icon">{icon_html}</span>
+        <span class="cl-feature-title">{title}</span>
+        <span class="cl-feature-desc">{description}</span>
+        <span class="cl-feature-cta">
+            <span class="cl-feature-cta-label">Open</span>
+            <span class="cl-feature-arrow">{arrow}</span>
+        </span>
+    </a>
     """

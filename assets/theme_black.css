@@ -1,0 +1,60 @@
+/* === Pure-black overlay ============================================== */
+/* Overrides the default theme.css gradients with a flat #000000
+ * background. No purple wash, no radial glows. Text stays light. */
+
+:root {
+    --bg-primary: #000000;
+    --bg-secondary: rgba(15, 15, 15, 0.85);
+    --bg-glass: rgba(20, 20, 20, 0.55);
+    --border-glass: rgba(255, 255, 255, 0.10);
+    --text-primary: #FFFFFF;
+    --text-secondary: #9CA3AF;
+}
+
+.stApp {
+    background: #000000 !important;
+    background-image: none !important;
+}
+
+section[data-testid="stSidebar"] {
+    background: #050505 !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Soften the panel glow tint that the base theme bakes in. */
+div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlockBorderWrapper"] {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    box-shadow: none;
+}
+
+.tr-header {
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.7) 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.tr-demo-card {
+    background: rgba(15, 15, 15, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.tr-pipeline {
+    background: rgba(15, 15, 15, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+}
+.tr-pipe-source {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.10);
+}
+.tr-pipe-model {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: #E5E7EB;
+}
+.tr-pipe-fuse {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.10);
+    color: #E5E7EB;
+}
+.tr-step-text u {
+    border-bottom-color: rgba(255, 255, 255, 0.35);
+    color: #E5E7EB;
+}

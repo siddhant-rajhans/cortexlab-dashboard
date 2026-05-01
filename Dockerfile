@@ -13,4 +13,4 @@ COPY . .
 
 EXPOSE 7860
 
-CMD ["streamlit", "run", "app.py", "--server.port=7860", "--server.headless=true", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "Home.py", "--server.port=7860", "--server.headless=true", "--server.address=0.0.0.0"]

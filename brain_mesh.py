@@ -55,14 +55,31 @@ ACTIVATION_PATTERNS = {
 # --- Mesh Loading ---
 
 @st.cache_resource
-def load_fsaverage_mesh(hemi="left", resolution="fsaverage5"):
-    """Load fsaverage brain mesh via nilearn. Returns (coords, faces)."""
+def load_fsaverage_mesh(hemi="left", resolution="fsaverage5", surface="pial"):
+    """Load an fsaverage brain mesh via nilearn.
+
+    Parameters
+    ----------
+    hemi
+        ``"left"`` or ``"right"``.
+    resolution
+        ``"fsaverage5"``, ``"fsaverage6"``, ``"fsaverage7"``, or
+        ``"fsaverage"`` (= 7).
+    surface
+        ``"pial"`` (real cortical surface, default), ``"inflated"``
+        (smooth balloon used in encoding papers), or ``"white"``
+        (gray/white-matter boundary).
+    """
     from nilearn.datasets import fetch_surf_fsaverage
     from nilearn.surface import load_surf_mesh
 
     fsaverage = fetch_surf_fsaverage(mesh=resolution)
-    key = f"pial_{hemi}"
-    coords, faces = load_surf_mesh(fsaverage[key])
+    surface_key = {
+        "pial":     f"pial_{hemi}",
+        "inflated": f"infl_{hemi}",
+        "white":    f"white_{hemi}",
+    }.get(surface, f"pial_{hemi}")
+    coords, faces = load_surf_mesh(fsaverage[surface_key])
     return np.array(coords, dtype=np.float32), np.array(faces, dtype=np.int32)
 
 
@@ -125,7 +142,14 @@ def blend_with_sulcal(vertex_data, sulcal_map, data_opacity=0.85):
 # --- Plotly Rendering ---
 
 def _make_mesh3d(coords, faces, vertex_data, cmap, vmin, vmax, opacity=1.0, name=""):
-    """Create a Plotly Mesh3d trace."""
+    """Create a Plotly Mesh3d trace.
+
+    Lighting tuned for an inflated cortex: low ambient (so concavities
+    actually look concave), strong diffuse, modest specular for the
+    Phong highlight on gyri. ``cmap`` may be either a Plotly named
+    colormap (``"Hot"``, ``"Inferno"``) or a list of ``[stop, color]``
+    pairs, e.g. for a custom hot-on-gray cortex palette.
+    """
     return go.Mesh3d(
         x=coords[:, 0], y=coords[:, 1], z=coords[:, 2],
         i=faces[:, 0], j=faces[:, 1], k=faces[:, 2],
@@ -134,12 +158,48 @@ def _make_mesh3d(coords, faces, vertex_data, cmap, vmin, vmax, opacity=1.0, name
         colorscale=cmap,
         cmin=vmin, cmax=vmax,
         opacity=opacity,
-        lighting=dict(ambient=0.4, diffuse=0.6, specular=0.3, roughness=0.5, fresnel=0.2),
-        lightposition=dict(x=100, y=200, z=300),
+        lighting=dict(
+            ambient=0.55,    # bumped so the cortex base color reads correctly
+            diffuse=0.85,    # main shape modulation from the directional light
+            specular=0.55,   # Phong highlight; gives gyri a soft sheen
+            roughness=0.45,  # slightly polished, not matte
+            fresnel=0.15,    # subtle rim brightening
+        ),
+        lightposition=dict(x=120, y=200, z=400),
         showscale=False,
         name=name,
         hovertemplate="Vertex: %{pointNumber}<br>Value: %{intensity:.3f}<extra></extra>",
     )
+
+
+def make_hot_on_cortex_colorscale(theme_mode: str = "black") -> list[list]:
+    """Return a Plotly colorscale that keeps the cortex visible.
+
+    Pure ``"Hot"`` maps zero to black, so non-activated cortex
+    disappears against a black background. This palette pins the low
+    end to a neutral gray (light enough to read on dark, dark enough
+    to read on light), holds it for a small plateau, then ramps
+    through dark-red → red → orange → gold → white at the high end.
+
+    Returned format matches Plotly's colorscale list spec:
+    ``[[stop, "#hex"], ...]``.
+    """
+    if theme_mode == "white":
+        cortex = "#9CA3AF"   # slate-400, reads clearly on #FFFFFF
+        plateau_end = "#9CA3AF"
+    else:
+        cortex = "#3F3F46"   # zinc-700, reads clearly on #000000
+        plateau_end = "#3F3F46"
+    # Hot ramp on top of the cortex plateau.
+    return [
+        [0.00, cortex],
+        [0.12, plateau_end],   # plateau: sub-threshold cortex stays gray
+        [0.20, "#7F1D1D"],     # dark red (subtle onset)
+        [0.40, "#DC2626"],     # red
+        [0.62, "#F97316"],     # orange
+        [0.82, "#FBBF24"],     # gold
+        [1.00, "#FFFFFF"],     # white peak
+    ]
 
 
 def _scene_layout(camera, bg_color="#0E1117"):
@@ -235,9 +295,19 @@ def _render_pyvista(coords, faces, vertex_data, cmap, vmin, vmax,
     mesh = pv.PolyData(coords, pv_faces)
     mesh.point_data["activation"] = vertex_data
 
-    cmap_map = {"Hot": "hot", "Inferno": "inferno", "Plasma": "plasma",
-                "Viridis": "viridis", "RdBu_r": "RdBu_r", "Coolwarm": "coolwarm"}
-    pv_cmap = cmap_map.get(cmap, "hot")
+    # The Plotly path accepts a list of [stop, hex] pairs as a custom
+    # colorscale; convert that to a matplotlib LinearSegmentedColormap
+    # so PyVista can use it. Named colormaps fall through unchanged.
+    if isinstance(cmap, list):
+        from matplotlib.colors import LinearSegmentedColormap
+        pv_cmap = LinearSegmentedColormap.from_list(
+            "cl_custom",
+            [(stop, color) for stop, color in cmap],
+        )
+    else:
+        cmap_map = {"Hot": "hot", "Inferno": "inferno", "Plasma": "plasma",
+                    "Viridis": "viridis", "RdBu_r": "RdBu_r", "Coolwarm": "coolwarm"}
+        pv_cmap = cmap_map.get(cmap, "hot")
 
     plotter = pv.Plotter(window_size=[900, 600], off_screen=True)
     plotter.add_mesh(
