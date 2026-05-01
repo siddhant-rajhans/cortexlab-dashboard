@@ -1,3 +1,15 @@
+---
+title: CortexLab Dashboard
+emoji: 🧠
+colorFrom: purple
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+license: cc-by-nc-4.0
+short_description: Multimodal fMRI brain encoding · TRIBE-styled live demo
+---
+
 # CortexLab Dashboard
 
 Futuristic interactive analysis dashboard for [CortexLab](https://github.com/siddhant-rajhans/cortexlab) - multimodal fMRI brain encoding toolkit built on Meta's TRIBE v2.
