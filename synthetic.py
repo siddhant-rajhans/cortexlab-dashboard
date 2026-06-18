@@ -228,3 +228,197 @@ def generate_correlated_features(
     # Standardize
     features = (features - features.mean(axis=0)) / (features.std(axis=0) + 1e-8)
     return features
+
+
+# --- Modality Lesion Pipeline ---
+#
+# Mirrors what cortexlab.analysis.lesion.run_modality_lesion produces:
+# per-vertex delta R^2 per modality, per-vertex p-values via row-permutation
+# tests (Phipson & Smyth +1 smoothing), and per-vertex BH-FDR q-values.
+# Generated synthetically so the dashboard can demo the full reviewer-grade
+# pipeline without needing a real Jarvis run.
+
+def _bh_fdr(p_values):
+    """Pure-numpy Benjamini-Hochberg correction.
+
+    Same algorithm as cortexlab.analysis.stats.bh_fdr. Inlined here so
+    the dashboard works without cortexlab installed. NaN passthrough,
+    monotonicity enforced from the right, clipped to [0, 1].
+    """
+    p = np.asarray(p_values, dtype=np.float64).copy()
+    out = np.full_like(p, np.nan)
+    finite_mask = np.isfinite(p)
+    if not finite_mask.any():
+        return out
+    p_finite = p[finite_mask]
+    m = p_finite.size
+    order = np.argsort(p_finite)
+    sorted_p = p_finite[order]
+    ranks = np.arange(1, m + 1, dtype=np.float64)
+    q_sorted = sorted_p * m / ranks
+    q_sorted = np.minimum.accumulate(q_sorted[::-1])[::-1]
+    q_sorted = np.clip(q_sorted, 0.0, 1.0)
+    q_finite = np.empty_like(q_sorted)
+    q_finite[order] = q_sorted
+    out[finite_mask] = q_finite
+    return out
+
+
+def generate_lesion_results(
+    n_vertices: int,
+    roi_indices: dict,
+    modality_specs: dict | None = None,
+    n_permutations: int = 200,
+    base_r2: float = 0.18,
+    seed: int = 42,
+):
+    """Generate a synthetic modality-lesion result mirroring v0.2 output.
+
+    Parameters
+    ----------
+    n_vertices : int
+        Total vertices in the (combined-hemisphere) cortex.
+    roi_indices : dict[str, np.ndarray]
+        Maps ROI name to vertex indices into the cortex array.
+    modality_specs : dict[str, dict]
+        Per-modality config:
+            { "vision": {"driving_rois": ["V1", "V2", "V4", "MT"], "strength": 0.6},
+              "audio":  {"driving_rois": ["A1", "A4"],             "strength": 0.5},
+              "text":   {"driving_rois": ["44", "45", "STV"],      "strength": 0.55} }
+        Defaults to (vision, audio, text) with sensible ROI mappings.
+    n_permutations : int
+        Number of permutation rounds simulated. Acts as the denominator
+        in the p-value floor 1 / (n + 1).
+    base_r2 : float
+        Mean full-model R^2 over the cortex.
+    seed : int
+        RNG seed for reproducibility.
+
+    Returns
+    -------
+    dict
+        {
+          "full_r2":    (n_vertices,) full-model R^2,
+          "delta_r2":   {modality: (n_vertices,) per-voxel delta R^2},
+          "p_values":   {modality: (n_vertices,) per-voxel p-values},
+          "q_values":   {modality: (n_vertices,) BH-FDR q-values},
+          "n_permutations": int,
+          "modality_order": list[str],
+        }
+    """
+    rng = np.random.default_rng(seed)
+
+    if modality_specs is None:
+        modality_specs = {
+            "vision": {
+                "driving_rois": ["V1", "V2", "V3", "V4", "MT", "MST", "FFC"],
+                "strength": 0.55,
+            },
+            "audio": {
+                "driving_rois": ["A1", "LBelt", "MBelt", "PBelt", "A4", "A5"],
+                "strength": 0.45,
+            },
+            "text": {
+                "driving_rois": ["44", "45", "IFJa", "IFJp", "TPOJ1", "STV"],
+                "strength": 0.50,
+            },
+        }
+
+    modalities = list(modality_specs.keys())
+
+    full_r2 = np.clip(
+        rng.normal(loc=base_r2, scale=0.04, size=n_vertices),
+        0.0, 0.6,
+    ).astype(np.float32)
+
+    delta_r2: dict[str, np.ndarray] = {}
+    p_values: dict[str, np.ndarray] = {}
+
+    p_floor = 1.0 / (n_permutations + 1)
+
+    for mod, spec in modality_specs.items():
+        driving = spec.get("driving_rois", [])
+        strength = float(spec.get("strength", 0.5))
+
+        # Identify which vertices are in driving ROIs for this modality.
+        signal_mask = np.zeros(n_vertices, dtype=bool)
+        for roi in driving:
+            idx = roi_indices.get(roi)
+            if idx is None or len(idx) == 0:
+                continue
+            valid = idx[idx < n_vertices]
+            signal_mask[valid] = True
+
+        delta = rng.normal(loc=0.0, scale=0.005, size=n_vertices).astype(np.float32)
+        if signal_mask.any():
+            n_sig = int(signal_mask.sum())
+            signal_delta = rng.normal(
+                loc=strength * 0.18, scale=0.03, size=n_sig,
+            ).astype(np.float32)
+            delta[signal_mask] = np.abs(signal_delta)
+        delta_r2[mod] = delta
+
+        # P-values directly from a mixture: null vertices uniform [0,1],
+        # signal vertices Beta(0.3, 5) concentrated near zero so BH-FDR
+        # can recover them at typical alpha = 0.05.
+        null_p = rng.uniform(p_floor, 1.0, size=n_vertices)
+        signal_p = np.clip(
+            rng.beta(0.3, 5.0, size=n_vertices), p_floor, 1.0,
+        )
+        p_values[mod] = np.where(signal_mask, signal_p, null_p).astype(np.float32)
+
+    q_values = {m: _bh_fdr(p_values[m]).astype(np.float32) for m in modalities}
+
+    return {
+        "full_r2": full_r2,
+        "delta_r2": delta_r2,
+        "p_values": p_values,
+        "q_values": q_values,
+        "n_permutations": n_permutations,
+        "modality_order": modalities,
+    }
+
+
+def roi_summary_from_lesion(
+    lesion: dict,
+    roi_indices: dict,
+    alpha: float = 0.05,
+):
+    """Aggregate per-vertex lesion output into a per-ROI summary table.
+
+    Mirrors cortexlab.analysis.lesion.roi_summary, but takes the simpler
+    dict produced by :func:`generate_lesion_results` (which has no
+    LesionResult class around it).
+
+    Returns
+    -------
+    list[dict]
+        One row per (ROI, modality) pair with mean delta R^2, median p,
+        median q, and fraction of vertices below the alpha threshold.
+    """
+    rows = []
+    n_vertices = lesion["full_r2"].shape[0]
+    for roi, idx in roi_indices.items():
+        valid = idx[idx < n_vertices]
+        if len(valid) == 0:
+            continue
+        row_base = {
+            "ROI": roi,
+            "n_voxels": int(len(valid)),
+            "full_R2": float(lesion["full_r2"][valid].mean()),
+        }
+        for mod in lesion["modality_order"]:
+            d = lesion["delta_r2"][mod][valid]
+            p = lesion["p_values"][mod][valid]
+            q = lesion["q_values"][mod][valid]
+            row = dict(row_base)
+            row.update({
+                "modality": mod,
+                "delta_R2_mean": float(d.mean()),
+                "delta_R2_top20": float(np.quantile(d, 0.8)),
+                "p_median": float(np.median(p)),
+                "q_median": float(np.median(q)),
+                "frac_q_sig": float((q < alpha).mean()),
+            })
+            rows.append(row)
+    return rows

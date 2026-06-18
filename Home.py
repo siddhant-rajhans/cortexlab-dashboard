@@ -261,26 +261,29 @@ st.markdown("<div style='height: 1.5rem'></div>", unsafe_allow_html=True)
 section_header("Analysis tools", "Each page is a focused workflow on the same encoder")
 
 _TOOLS = [
+    ("target", "Modality Lesion Pipeline",
+     "Per-modality causal ablation with row-permutation tests and BH-FDR. Surfaces the v0.2 headline: per-vertex p-values, q-values, per-ROI significance.",
+     "#F59E0B", "./Lesion_Pipeline"),
     ("target", "Brain Alignment Benchmark",
      "Score any AI model against brain responses. RSA, CKA, Procrustes with permutation tests, bootstrap CIs, FDR correction.",
      "#7C3AED", "./Brain_Alignment"),
     ("bars", "Cognitive Load Scorer",
      "Predict cognitive demand across visual, auditory, language, and executive dimensions with confidence bands.",
      "#3B82F6", "./Cognitive_Load"),
+    ("brain", "3D Brain Viewer",
+     "Interactive rotatable brain surface with activation overlays, publication-quality multi-view panels, ROI highlighting.",
+     "#EC4899", "./Brain_Viewer"),
     ("clock", "Temporal Dynamics",
      "Peak response latency, lag correlations, sustained vs transient decomposition, cross-ROI lag matrix.",
      "#06B6D4", "./Temporal_Dynamics"),
     ("graph", "ROI Connectivity",
      "Functional connectivity, partial correlation, network clustering, modularity, centrality.",
      "#10B981", "./Connectivity"),
-    ("brain", "3D Brain Viewer",
-     "Interactive rotatable brain surface with activation overlays, publication-quality multi-view panels, ROI highlighting.",
-     "#EC4899", "./Brain_Viewer"),
     ("broadcast", "Live Inference",
      "Real-time brain prediction from webcam, screen capture, or video. Updates the 3D brain live.",
      "#EF4444", "./Live_Inference"),
 ]
-for row in (_TOOLS[:3], _TOOLS[3:]):
+for row in (_TOOLS[:3], _TOOLS[3:6], _TOOLS[6:]):
     cols = st.columns(3, gap="medium")
     for col, (icon, title, desc, color, href) in zip(cols, row):
         with col:
